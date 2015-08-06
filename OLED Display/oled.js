@@ -231,6 +231,9 @@ EdisonOLED.prototype.pixel = function (x, y, color, mode) {
     }
 };
 EdisonOLED.prototype.line = function (x0, y0, x1, y1, color, mode) {
+    color = this.foreColor|color;
+    mode = this.drawMode|mode;
+    
     var steep = Math.abs(y1 - y0) > Math.abs(x1 - x0);
     var pos = {x:x0, y:y0};
     var pos2 = {x:x1, y:y1};
@@ -291,22 +294,113 @@ EdisonOLED.prototype.line = function (x0, y0, x1, y1, color, mode) {
     }
 };
 EdisonOLED.prototype.lineH = function (x, y, width, color, mode) {
-    // body...
+    this.line(x,y,x+width,y,color,mode);
 };
 EdisonOLED.prototype.lineV = function (x, y, height, color, mode) {
-    // body...
+    this.line(x,y,x,y+height,color,mode);
 };
 EdisonOLED.prototype.rect = function (x, y, height, width, color, mode) {
-    // body...
+    color = this.foreColor|color;
+    mode = this.drawMode|mode;
+    
+    var tempHeight;
+
+	this.lineH(x,y, width, color, mode);
+	this.lineH(x,y+height-1, width, color, mode);
+
+	tempHeight=height-2;
+
+	// skip drawing vertical lines to avoid overlapping of pixel that will
+	// affect XOR plot if no pixel in between horizontal lines
+	if (tempHeight<1)
+		return;
+
+	this.lineV(x,y+1, tempHeight, color, mode);
+	this.lineV(x+width-1, y+1, tempHeight, color, mode);
 };
 EdisonOLED.prototype.rectFill = function (x, y, height, width, color, mode) {
-    // body...
+    for (var i=x; i<x+width;i++)
+	{
+		this.lineV(i,y, height, color, mode);
+	}
 };
-EdisonOLED.prototype.circle = function (x, y, radius, color, mode) {
-    // body...
+EdisonOLED.prototype.circle = function (x0, y0, radius, color, mode) {
+    color = this.foreColor|color;
+    mode = this.drawMode|mode;
+    
+    var f = 1 - radius;
+	var ddF_x = 1;
+	var ddF_y = -2 * radius;
+	var x = 0;
+	var y = radius;
+
+	this.pixel(x0, y0+radius, color, mode);
+	this.pixel(x0, y0-radius, color, mode);
+	this.pixel(x0+radius, y0, color, mode);
+	this.pixel(x0-radius, y0, color, mode);
+
+	while (x<y)
+	{
+		if (f >= 0)
+		{
+			y--;
+			ddF_y += 2;
+			f += ddF_y;
+		}
+		x++;
+		ddF_x += 2;
+		f += ddF_x;
+
+		this.pixel(x0 + x, y0 + y, color, mode);
+		this.pixel(x0 - x, y0 + y, color, mode);
+		this.pixel(x0 + x, y0 - y, color, mode);
+		this.pixel(x0 - x, y0 - y, color, mode);
+
+		this.pixel(x0 + y, y0 + x, color, mode);
+		this.pixel(x0 - y, y0 + x, color, mode);
+		this.pixel(x0 + y, y0 - x, color, mode);
+		this.pixel(x0 - y, y0 - x, color, mode);
+
+	}
 };
-EdisonOLED.prototype.circleFill = function (x, y, radius, color, mode) {
-    // body...
+EdisonOLED.prototype.circleFill = function (x0, y0, radius, color, mode) {
+    var f = 1 - radius;
+	var ddF_x = 1;
+	var ddF_y = -2 * radius;
+	var x = 0;
+	var y = radius;
+
+	// Temporary disable fill circle for XOR mode.
+	if (mode==XOR) return;
+
+	for (var i=y0-radius; i<=y0+radius; i++)
+	{
+		this.pixel(x0, i, color, mode);
+	}
+
+	while (x<y)
+	{
+		if (f >= 0)
+		{
+			y--;
+			ddF_y += 2;
+			f += ddF_y;
+		}
+		x++;
+		ddF_x += 2;
+		f += ddF_x;
+
+		for (var i=y0-y; i<=y0+y; i++)
+		{
+			this.pixel(x0+x, i, color, mode);
+			this.pixel(x0-x, i, color, mode);
+		}
+		for (var i=y0-x; i<=y0+x; i++)
+		{
+			this.pixel(x0+y, i, color, mode);
+			this.pixel(x0-y, i, color, mode);
+		}
+	}
 };
 EdisonOLED.prototype.drawChar = function (x, y, c, color, mode) {
     // body...
