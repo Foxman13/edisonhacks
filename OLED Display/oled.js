@@ -34,19 +34,16 @@ var CHARGEPUMP = 0x8D;
 var EXTERNALVCC = 0x01;
 var SWITCHCAPVCC = 0x02;
 
-var CS_PIN = new mraa.Spi(9); //SPI-5-CS1 GPIO 111
-//CS_PIN(mraa.DIR_OUT);
 var RST_PIN = new mraa.Gpio(48); //GPIO 15
 RST_PIN.dir(mraa.DIR_OUT);
 var DC_PIN = new mraa.Gpio(36); // GPIO 14
 DC_PIN.dir(mraa.DIR_OUT);
-var SCLK_PIN = new mraa.Spi(10); //SPI-5-SCK GPIO 109
-var MOSI_PIN = new mraa.Spi(11); //SPI-5-MOSI GPIO 115
+var MOSI_PIN = new mraa.Spi(0); //SPI-5-MOSI GPIO 115
 
 var HIGH = 1;
 var LOW = 0;
 
-var screenmemory = new Uint8Array([
+var screenmemory = [
     // ROW0, unsigned char0 to unsigned char63
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0, 0xF8, 0xFC, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -81,7 +78,7 @@ var screenmemory = new Uint8Array([
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
 	0x7F, 0x3F, 0x1F, 0x0F, 0x07, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
 
 var EdisonOLED = function(){
     this.drawMode = NORM;
@@ -186,21 +183,29 @@ EdisonOLED.prototype.clear = function (mode, c) {
 		{
 			this.setPageAddress(i);
 			this.setColumnAddress(0);
-			for (var j=0; j<0x80; j++)
+/*            var start = i*0x40;
+            var end = start + 63;
+            console.log('start: ' + start + '| end: ' +end);*/
+            var packet = new Buffer(64);
+            //smBuf.copy(packet, 0, start, end);
+            this.spiWrite(packet);
+	/*		for (var j=0; j<0x80; j++)
 			{
                 if(c){
                     this.data(c);
                 }else{
 				    this.data(0);
                 }
-			}
+			}*/
 		}
 	}
 	else
 	{
 		//memset(screenmemory,0,384);			// (64 x 48) / 8 = 384
+        
+        //the GDDRAM is 128x64 - 
         for(var i = 0; i < screenmemory.length; i++){
-            screenmemory[i] = 0;   
+            screenmemory[i] = 0x00;   
         }
         //this.spiWrite(screenmemory);
 	}
@@ -431,10 +436,10 @@ EdisonOLED.prototype.drawBitmap = function (data, x, y, width, height) {
     }
 };
 EdisonOLED.prototype.getLCDWidth = function () {
-    // body...
+    return LCDWIDTH;
 };
 EdisonOLED.prototype.getLCDHeight = function () {
-    // body...
+    return LCDHEIGHT;
 };
 EdisonOLED.prototype.setColor = function (color) {
     this.foreColor = color;
@@ -444,37 +449,43 @@ EdisonOLED.prototype.setDrawMode = function (mode) {
 };
 EdisonOLED.prototype.display = function (mode) {
     var i, j;
-
+    //this.setPageAddress(1);
+    //this.setColumnAddress(0);
+    var smBuf = new Buffer(screenmemory);
+    //this.spiWrite(smBuf);
     for (i=0; i<6; i++)
     {
         this.setPageAddress(i);
         this.setColumnAddress(0);
-        for (j=0;j<0x40;j++)
+        var start = i*0x40;
+        var end = start + 63;
+        console.log('start: ' + start + '| end: ' +end);
+        var packet = new Buffer(64);
+        smBuf.copy(packet, 0, start, end);
+        this.spiWrite(packet);
+/*        for (j=0;j<0x40;j++)
         {
-            this.data(screenmemory[i*0x40+j]);
-        }
+            //this.data(screenmemory[i*0x40+j]);
+
+        }*/
     }
+    //this.spiWrite(screenmemory);
 };
 // Font functions
 EdisonOLED.prototype.setFontType = function (type) {
     this.fontType = type;
 };
 EdisonOLED.prototype.spiSetup = function () {
-    CS_PIN.mode(0);
-    CS_PIN.frequency(10000000);
-    CS_PIN.writeByte(HIGH);
-    SCLK_PIN.mode(0);
-    SCLK_PIN.frequency(10000000);
     MOSI_PIN.mode(0);
     MOSI_PIN.frequency(10000000);
 };
 EdisonOLED.prototype.spiTransfer = function (data) {
-    CS_PIN.writeByte(data);
+    MOSI_PIN.writeByte(data);
 };
 EdisonOLED.prototype.spiWrite = function (data) {
-    console.log('spiWrite - length: ' + data.length);
-    //DC_PIN.write(HIGH);
-    CS_PIN.write(new Buffer(data));
+    //console.log('spiWrite - length: ' + data.length);
+    DC_PIN.write(HIGH);
+    MOSI_PIN.write(new Buffer(data));
 };
 var CMD;
 (function (CMD) {
