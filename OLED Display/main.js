@@ -1,4 +1,6 @@
 var mraa = require('mraa');
+console.log("mraa version: " + mraa.getVersion());
+
 var fs = require('fs');
 var path = require('path');
 var OLED = require('./oled');

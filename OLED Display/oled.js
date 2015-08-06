@@ -44,8 +44,9 @@ var HIGH = 1;
 var LOW = 0;
 
 var FONTTYPES = [FONTS.font5x7, FONTS.font8x16, FONTS.sevensegment, FONTS.fontlargenumber];
+var screenbuffer = new Buffer(1024);
 
-var screenmemory = [
+var screenmemory = new Buffer([
     // ROW0, unsigned char0 to unsigned char63
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0, 0xF8, 0xFC, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -80,7 +81,7 @@ var screenmemory = [
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
 	0x7F, 0x3F, 0x1F, 0x0F, 0x07, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 
 var EdisonOLED = function(){
     this.drawMode = NORM;
@@ -94,6 +95,7 @@ var EdisonOLED = function(){
     this.fontMapWidth;
     this.cursorX;
 	this.cursorY;
+    this.firstClear = true;
 };
 EdisonOLED.prototype.swap = function(pos){
     var t = pos.x; pos.x = pos.y; pos.y = t;
@@ -104,7 +106,7 @@ EdisonOLED.prototype.begin = function(callback){
     this.setDrawMode(NORM);
     this.setCursor(0, 0);
 
-    this.spiSetup();
+    this.spiSetup(25000);
 
     var _this = this;
     RST_PIN.write(HIGH);
@@ -211,6 +213,11 @@ EdisonOLED.prototype.setPageAddress = function (add) {
 };
 // LCD draw functions
 EdisonOLED.prototype.clear = function (mode, c) {
+/*    if(this.firstClear){
+        this.firstClear = false;
+        this.spiSetup(25000);
+    }*/
+    
     //	unsigned char page=6, col=0x40;
 	if (mode==ALL)
 	{
@@ -235,13 +242,13 @@ EdisonOLED.prototype.clear = function (mode, c) {
 	}
 	else
 	{
-		//memset(screenmemory,0,384);			// (64 x 48) / 8 = 384
-        
         //the GDDRAM is 128x64 - 
-        for(var i = 0; i < screenmemory.length; i++){
-            screenmemory[i] = 0x00;   
+        for(var i = 0; i < screenbuffer.length; i++){
+            screenbuffer.writeUInt8(0x00, i);   
         }
-        //this.spiWrite(screenmemory);
+//        for(var i = 0; i < screenmemory.length; i++){
+//            screenmemory.writeUInt8(0x00, i);   
+//        }
 	}
 };
 EdisonOLED.prototype.setCursor = function (x, y) {
@@ -258,15 +265,15 @@ EdisonOLED.prototype.pixel = function (x, y, color, mode) {
     if (mode==XOR)
     {
         if (color==WHITE)
-            screenmemory[x+ Math.floor(y/8)*LCDWIDTH] ^= (1<<(y%8));
+            screenbuffer[x+ Math.floor(y/8)*LCDWIDTH] ^= (1<<(y%8));
     }
     else
     {
         
         if (color==WHITE)
-            screenmemory[x+ Math.floor(y/8)*LCDWIDTH] |= (1<<(y%8));
+            screenbuffer[x+ Math.floor(y/8)*LCDWIDTH] |= (1<<(y%8));
         else
-            screenmemory[x+ Math.floor(y/8)*LCDWIDTH] &= ~(1<<(y%8));
+            screenbuffer[x+ Math.floor(y/8)*LCDWIDTH] &= ~(1<<(y%8));
     }
 };
 EdisonOLED.prototype.line = function (x0, y0, x1, y1, color, mode) {
@@ -465,13 +472,13 @@ EdisonOLED.prototype.drawChar = function (x, y, c, color, mode) {
 
 	// each row (in datasheet is call page) is 8 bits high, 16 bit high character will have 2 rows to be drawn
 	rowsToDraw=this.fontHeight/8;	// 8 is LCD's page size, see SSD1306 datasheet
-    console.log('rowstodraw: ' + rowsToDraw);
+    //console.log('rowstodraw: ' + rowsToDraw);
 	if (rowsToDraw<=1) rowsToDraw=1;
 
 	// the following draw function can draw anywhere on the screen, but SLOW pixel by pixel draw
 	if (rowsToDraw==1)
 	{
-        console.log('fontWidth: ' + this.fontWidth);
+        //console.log('fontWidth: ' + this.fontWidth);
 		for  (i=0;i<this.fontWidth+1;i++)
 		{
 			if (i==this.fontWidth) // this is done in a weird way because for 5x7 font, there is no margin, this code add a margin after col 5
@@ -479,7 +486,7 @@ EdisonOLED.prototype.drawChar = function (x, y, c, color, mode) {
 			else
                 temp=this.font.readUInt8(FONTHEADERSIZE+(tempC*this.fontWidth)+i);
             
-            console.log('temp: ' + temp);
+            //console.log('temp: ' + temp);
 
 			for (j=0;j<8;j++)
 			{			
@@ -521,7 +528,8 @@ EdisonOLED.prototype.drawChar = function (x, y, c, color, mode) {
             temp=this.font.readUInt8(FONTHEADERSIZE+(charBitmapStartPosition+i+(row*this.fontMapWidth)));
 
 			for (j=0;j<8;j++)
-			{			// 8 is the LCD's page height (see datasheet for explanation)
+			{			
+                // 8 is the LCD's page height (see datasheet for explanation)
 				if (temp & 0x1)
 				{
 					this.pixel(x+i,y+j+(row*8), color, mode);
@@ -621,27 +629,18 @@ EdisonOLED.prototype.setDrawMode = function (mode) {
 };
 EdisonOLED.prototype.display = function (mode) {
     var i, j;
-    //this.setPageAddress(1);
-    //this.setColumnAddress(0);
-    var smBuf = new Buffer(screenmemory);
-    //this.spiWrite(smBuf);
     for (i=0; i<6; i++)
     {
+        // write the whole page buffer
         this.setPageAddress(i);
         this.setColumnAddress(0);
-        var start = i*0x40;
-        var end = start + 63;
-        console.log('start: ' + start + '| end: ' +end);
-        var packet = new Buffer(64);
-        smBuf.copy(packet, 0, start, end);
+        var start = i*64;
+        var end = start + 64;
+        //console.log('start: ' + start + '| end: ' +end);
+        var packet = new Buffer(128);
+        screenbuffer.copy(packet, 0, start, end);
         this.spiWrite(packet);
-/*        for (j=0;j<0x40;j++)
-        {
-            //this.data(screenmemory[i*0x40+j]);
-
-        }*/
     }
-    //this.spiWrite(screenmemory);
 };
 // Font functions
 EdisonOLED.prototype.setFontType = function (type) {
@@ -655,9 +654,10 @@ EdisonOLED.prototype.setFontType = function (type) {
     this.fontTotalChar = this.font.readUInt8(3);
     this.fontMapWidth = (this.font.readUInt8(4) * 100) + this.font.readUInt8(5);
 };
-EdisonOLED.prototype.spiSetup = function () {
+EdisonOLED.prototype.spiSetup = function (freq) {
     MOSI_PIN.mode(0);
-    MOSI_PIN.frequency(10000000);
+    //MOSI_PIN.frequency(10000000);
+    MOSI_PIN.frequency(freq); // reduce the clock speed work around an Intel kernel issue
 };
 EdisonOLED.prototype.spiTransfer = function (data) {
     MOSI_PIN.writeByte(data);
