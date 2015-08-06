@@ -14,20 +14,33 @@ oled.begin(function(){
 /*    oled.line(0, 23, 63, 23, 1, 0);
     oled.line(31, 0, 31, 47, 1, 0);*/
     //oled.line(0, 2, 63, 2, 1, 0);
-    oled.rectFill(5, 5, 15, 15, 1, 1);
+/*    oled.rectFill(5, 5, 15, 15, 1, 1);
     oled.rectFill(22, 5, 15, 15, 1);
     oled.rectFill(5, 22, 15, 15, 1);
-    oled.rectFill(22, 22, 15, 15, 1);
+    oled.rectFill(22, 22, 15, 15, 1);*/
     //oled.circleFill(31, 23, 10, 1);
-    oled.display();
+    //oled.print('1');
+    //oled.display();
+    //oled.clear(0);
+    oled.setFontType(0);
+    oled.setCursor(0,0);
+    //oled.print('2');
+/*    oled.write('1');
+    oled.write('2');
+    oled.write('3');
+    oled.display();*/
     
-/*    fs.readFile(path.join(__dirname, '/images/Delta_seatMaintenance_24x24.bmp'), function(err, data){
+    fs.readFile(path.join(__dirname, '/images/sample.bmp'), function(err, data){
         if(err) throw err;
-        console.log(data);
-        //oled.clear(1);
-        oled.drawBitmap(data, 5, 5, 24, 24);
-        oled.display();
-    });*/
+        //console.log(data);
+        for(var i=0; i<15; i++) {
+            oled.clear(0);
+            oled.setCursor(0,0)
+            oled.print((i + 1).toString());
+            oled.drawBitmap(data, i, i);      
+            oled.display();
+        }
+    });
 
 });
 
